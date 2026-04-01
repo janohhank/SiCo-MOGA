@@ -1,5 +1,4 @@
 import random
-from functools import lru_cache
 from typing import Sequence, Any
 import numpy
 from numpy import floating
@@ -32,12 +31,21 @@ class MultiObjectiveTraining:
         # Pre-compute correlation matrix
         self._corr_matrix: numpy.ndarray = corr_matrix
 
-    # Cache the results of evaluate_multi
-    def evaluate_multi(self, individual: Sequence[int]) -> tuple[float, float]:
-        return self._evaluate_multi_cached(tuple(individual))
+        # Per-instance evaluation cache
+        self._cache: dict[tuple[int, ...], tuple[float, float]] = {}
 
-    @lru_cache(maxsize=None)
-    def _evaluate_multi_cached(self, individual: Sequence[int]) -> tuple[float, float] | tuple[floating[Any], floating[Any]]:
+    def clear_cache(self) -> None:
+        self._cache.clear()
+
+    def evaluate_multi(self, individual: Sequence[int]) -> tuple[float, float]:
+        key: tuple[int, ...] = tuple(individual)
+        if key in self._cache:
+            return self._cache[key]
+        result = self._evaluate_multi(key)
+        self._cache[key] = result
+        return result
+
+    def _evaluate_multi(self, individual: Sequence[int]) -> tuple[float, float] | tuple[floating[Any], floating[Any]]:
         if sum(individual) == 0:
             return 0.0, 0.0
 
@@ -89,21 +97,21 @@ class MultiObjectiveTraining:
         if "Individual" not in creator.__dict__:
             creator.create("Individual", list, fitness=creator.FitnessMulti)
 
-            toolbox: base.Toolbox = base.Toolbox()
+        toolbox: base.Toolbox = base.Toolbox()
 
-            toolbox.register("attr_bool", random.randint, 0, 1)
-            toolbox.register(
-                "individual",
-                tools.initRepeat,
-                creator.Individual,
-                toolbox.attr_bool,
-                n=len(self._feature_names),
-            )
-            toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-            toolbox.register("evaluate", self.evaluate_multi)
-            toolbox.register("mate", tools.cxUniform, indpb=0.5)
-            toolbox.register("mutate", tools.mutFlipBit, indpb=1.0 / len(self._feature_names))
-            toolbox.register("select", tools.selNSGA2)
+        toolbox.register("attr_bool", random.randint, 0, 1)
+        toolbox.register(
+            "individual",
+            tools.initRepeat,
+            creator.Individual,
+            toolbox.attr_bool,
+            n=len(self._feature_names),
+        )
+        toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+        toolbox.register("evaluate", self.evaluate_multi)
+        toolbox.register("mate", tools.cxUniform, indpb=0.5)
+        toolbox.register("mutate", tools.mutFlipBit, indpb=1.0 / len(self._feature_names))
+        toolbox.register("select", tools.selNSGA2)
 
         pop: list[creator.Individual] = toolbox.population(n=self._config.pop_size)
 
@@ -114,7 +122,7 @@ class MultiObjectiveTraining:
             ind.fitness.values = fit
 
         # Crowding distance assignment
-        pop: list[creator.Individual] = toolbox.select(pop, len(pop))  # crowding assignment
+        pop: list[creator.Individual] = toolbox.select(pop, len(pop))
 
         # Pareto archive
         hof: tools.ParetoFront = tools.ParetoFront()
@@ -145,9 +153,6 @@ class MultiObjectiveTraining:
             for ind, fit in zip(invalid, fitnesses):
                 ind.fitness.values = fit
 
-            # Combine parents + offspring
-            combined: list[creator.Individual] = pop + offspring
-
             # NSGA-II survival selection
             pop: list[creator.Individual] = toolbox.select(pop + offspring, self._config.pop_size)
 
@@ -156,5 +161,5 @@ class MultiObjectiveTraining:
 
             print(f"Generation {gen + 1} done | Pareto size: {len(hof)}")
 
-            # Return the Pareto front
-            return tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
+        # Return the Pareto front
+        return tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
