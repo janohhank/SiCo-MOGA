@@ -1,3 +1,4 @@
+import os
 import random
 from typing import Sequence, Any
 import numpy
@@ -5,6 +6,7 @@ from numpy import floating
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, roc_auc_score
 from training_config import TrainingConfig
+from training_utils import save_stats_csv, plot_multi_objective_convergence, plot_pareto_front
 from deap import base, creator, tools
 
 class MultiObjectiveTraining:
@@ -128,6 +130,9 @@ class MultiObjectiveTraining:
         hof: tools.ParetoFront = tools.ParetoFront()
         hof.update(pop)
 
+        # Collect generation 0 stats
+        gen_stats: list[dict] = [self._collect_gen_stats(0, pop, hof, len(invalid))]
+
         # Genetic algorithm
         for gen in range(self._config.ngen):
             # Binary tournament selection (NSGA-II)
@@ -159,7 +164,33 @@ class MultiObjectiveTraining:
             # Update global Pareto archive
             hof.update(pop)
 
+            gen_stats.append(self._collect_gen_stats(gen + 1, pop, hof, len(invalid)))
+
             print(f"Generation {gen + 1} done | Pareto size: {len(hof)}")
 
-        # Return the Pareto front
-        return tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
+        # Save statistics and plots
+        front: list[creator.Individual] = tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
+        if self._config.result_directory:
+            seed_dir: str = os.path.join(self._config.result_directory, f"seed_{self._config.seed}")
+            save_stats_csv(gen_stats, os.path.join(seed_dir, "convergence.csv"))
+            plot_multi_objective_convergence(gen_stats, os.path.join(seed_dir, "convergence.png"))
+            plot_pareto_front(front, os.path.join(seed_dir, "pareto_front.png"))
+
+        return front
+
+    @staticmethod
+    def _collect_gen_stats(gen: int, pop: list, hof: tools.ParetoFront, nevals: int) -> dict:
+        fitness_values = [ind.fitness.values for ind in pop]
+        auc_values = [f[0] for f in fitness_values]
+        sign_values = [f[1] for f in fitness_values]
+        return {
+            "gen": gen,
+            "nevals": nevals,
+            "auc_max": float(numpy.max(auc_values)),
+            "auc_mean": float(numpy.mean(auc_values)),
+            "auc_std": float(numpy.std(auc_values)),
+            "sign_max": float(numpy.max(sign_values)),
+            "sign_mean": float(numpy.mean(sign_values)),
+            "sign_std": float(numpy.std(sign_values)),
+            "pareto_size": len(hof),
+        }

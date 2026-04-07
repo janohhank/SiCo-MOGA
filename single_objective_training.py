@@ -1,3 +1,4 @@
+import os
 import random
 from typing import Sequence, Any
 
@@ -8,6 +9,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, average_precision_score
 
 from training_config import TrainingConfig
+from training_utils import save_stats_csv, plot_single_objective_convergence
 
 class SingleObjectiveTraining:
     def __init__(self,
@@ -103,8 +105,11 @@ class SingleObjectiveTraining:
 
         stats: tools.Statistics = tools.Statistics(lambda ind: ind.fitness.values)
         stats.register("max", numpy.max)
+        stats.register("avg", numpy.mean)
+        stats.register("min", numpy.min)
+        stats.register("std", numpy.std)
 
-        _, _ = algorithms.eaMuPlusLambda(
+        _, logbook = algorithms.eaMuPlusLambda(
             pop,
             toolbox,
             mu=self._config.pop_size,
@@ -116,6 +121,18 @@ class SingleObjectiveTraining:
             halloffame=hof,
             verbose=True
         )
+
+        # Save statistics and plots
+        if self._config.result_directory:
+            gen_stats: list[dict] = [
+                {"gen": rec["gen"], "nevals": rec["nevals"],
+                 "max": rec["max"], "avg": rec["avg"],
+                 "min": rec["min"], "std": rec["std"]}
+                for rec in logbook
+            ]
+            seed_dir: str = os.path.join(self._config.result_directory, f"seed_{self._config.seed}")
+            save_stats_csv(gen_stats, os.path.join(seed_dir, "convergence.csv"))
+            plot_single_objective_convergence(gen_stats, os.path.join(seed_dir, "convergence.png"))
 
         best_individual: creator.IndividualSingle = hof[0]
         return best_individual
