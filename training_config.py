@@ -15,3 +15,5 @@ class TrainingConfig:
     mutpb: float = 0.2
     # Use ROC-AUC instead of PR-AUC
     use_roc_auc: bool = True
+    # Directory to save results
+    result_directory: str = ""
