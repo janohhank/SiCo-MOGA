@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import random
 from typing import Sequence, Any
