@@ -11,6 +11,21 @@ def ensure_directory(directory: str) -> None:
     os.makedirs(directory, exist_ok=True)
 
 
+def _apply_plot_theme() -> None:
+    """Set a clean white-background, black-text theme for all plots."""
+    plt.rcParams.update({
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "savefig.facecolor": "white",
+        "text.color": "black",
+        "axes.labelcolor": "black",
+        "xtick.color": "black",
+        "ytick.color": "black",
+        "axes.edgecolor": "black",
+        "grid.color": "#cccccc",
+    })
+
+
 def save_stats_csv(stats: list[dict], filepath: str) -> None:
     if not stats:
         return
@@ -27,6 +42,7 @@ def plot_single_objective_convergence(stats: list[dict], filepath: str) -> None:
     max_vals: list[float] = [s["max"] for s in stats]
     avg_vals: list[float] = [s["avg"] for s in stats]
 
+    _apply_plot_theme()
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(gens, max_vals, label="Max", linewidth=2)
     ax.plot(gens, avg_vals, label="Avg", linewidth=2, linestyle="--")
@@ -49,6 +65,7 @@ def plot_multi_objective_convergence(stats: list[dict], filepath: str) -> None:
     ensure_directory(os.path.dirname(filepath))
     gens: list[int] = [s["gen"] for s in stats]
 
+    _apply_plot_theme()
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
     # AUC convergence
@@ -86,6 +103,7 @@ def plot_pareto_front(pareto_individuals: list, filepath: str) -> None:
     auc_vals: list[float] = [ind.fitness.values[0] for ind in pareto_individuals]
     sign_vals: list[float] = [ind.fitness.values[1] for ind in pareto_individuals]
 
+    _apply_plot_theme()
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.scatter(auc_vals, sign_vals, c="royalblue", alpha=0.7, edgecolors="black", s=50)
     ax.set_xlabel("AUC")
