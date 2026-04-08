@@ -13,7 +13,29 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, average_precision_score
 from sklearn.preprocessing import StandardScaler
 
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
 from training_utils import ensure_directory
+
+
+# ---------------------------------------------------------------------------
+# Matplotlib global theme: white background, black text
+# ---------------------------------------------------------------------------
+
+def _apply_plot_theme() -> None:
+    """Set a clean white-background, black-text theme for all plots."""
+    sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
+    plt.rcParams.update({
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "savefig.facecolor": "white",
+        "text.color": "black",
+        "axes.labelcolor": "black",
+        "xtick.color": "black",
+        "ytick.color": "black",
+        "axes.edgecolor": "black",
+        "grid.color": "#cccccc",
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +249,7 @@ def plot_robustness_heatmaps(results_df: pandas.DataFrame, filepath: str) -> Non
     clean_multi: float = pivot_multi.loc[0.0, 0.0] if 0.0 in pivot_multi.index and 0.0 in pivot_multi.columns else float("nan")
     clean_single: float = pivot_single.loc[0.0, 0.0] if 0.0 in pivot_single.index and 0.0 in pivot_single.columns else float("nan")
 
-    sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
+    _apply_plot_theme()
     fig, axes = plt.subplots(1, 2, figsize=(18, 7))
 
     sns.heatmap(pivot_multi, cmap="viridis", vmin=vmin, vmax=vmax, annot=False,
@@ -259,6 +281,7 @@ def plot_dummy_flip_comparison(results_df: pandas.DataFrame, filepath: str) -> N
 
     df_flip: pandas.DataFrame = results_df[results_df["noise_type"] == "dummy_flip"].sort_values("flip_rate")
 
+    _apply_plot_theme()
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(df_flip["flip_rate"], df_flip["auc_multi"],
             label="Multi-Objective (SiCo-MOGA)", linewidth=2, marker="o", color="tab:blue")
@@ -289,6 +312,7 @@ def plot_gaussian_noise_comparison(results_df: pandas.DataFrame, filepath: str) 
         (numpy.isclose(results_df["mean_shift"], 0.0))
     ].sort_values("noise_level")
 
+    _apply_plot_theme()
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(df_gauss["noise_level"], df_gauss["auc_multi"],
             label="Multi-Objective (SiCo-MOGA)", linewidth=2, marker="o", color="tab:blue")
@@ -406,7 +430,7 @@ def plot_stability_heatmap(
     mean_single: float = float(matrix_single[numpy.triu_indices_from(matrix_single, k=1)].mean()) \
         if len(seeds_single) > 1 else 1.0
 
-    sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
+    _apply_plot_theme()
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     sns.heatmap(matrix_multi, annot=True, fmt=".3f", cmap="YlGnBu",
@@ -456,6 +480,7 @@ def plot_feature_frequency(
     mask: numpy.ndarray = counts[order] > 0
     order: numpy.ndarray = order[mask]
 
+    _apply_plot_theme()
     fig, ax = plt.subplots(figsize=(max(10, len(order) * 0.4), 6))
     x_pos: numpy.ndarray = numpy.arange(len(order))
     bars = ax.bar(x_pos, counts[order], color="steelblue", edgecolor="black", alpha=0.8)
@@ -478,6 +503,131 @@ def plot_feature_frequency(
     ax.axhline(y=n_seeds, color="darkgreen", linestyle="--", alpha=0.5, label=f"All {n_seeds} seeds")
     ax.legend(fontsize=9)
     ax.grid(True, axis="y", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(filepath, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Variance Inflation Factor (VIF) analysis
+# ---------------------------------------------------------------------------
+
+def compute_vif(X: pandas.DataFrame, features: list[str]) -> pandas.DataFrame:
+    """Compute VIF for each selected feature.
+    Returns a DataFrame with columns ['feature', 'vif']."""
+    X_subset: pandas.DataFrame = X[features].copy()
+
+    # Add constant column for intercept
+    X_subset.insert(0, "_const", 1.0)
+
+    vif_data: list[dict[str, Any]] = []
+    for i in range(1, X_subset.shape[1]):  # skip constant
+        vif_val: float = float(variance_inflation_factor(X_subset.values, i))
+        vif_data.append({
+            "feature": X_subset.columns[i],
+            "vif": vif_val,
+        })
+
+    return pandas.DataFrame(vif_data)
+
+
+def compute_vif_across_seeds(
+        individuals_by_seed: dict[int, list[int]],
+        feature_names: list[str],
+        X_train: pandas.DataFrame) -> pandas.DataFrame:
+    """Compute VIF for each seed's selected features.
+    Returns a tidy DataFrame with columns ['seed', 'feature', 'vif']."""
+    all_rows: list[dict[str, Any]] = []
+    for seed, individual in individuals_by_seed.items():
+        selected: list[str] = [f for f, bit in zip(feature_names, individual) if bit == 1]
+        if len(selected) < 2:
+            continue
+        vif_df: pandas.DataFrame = compute_vif(X_train, selected)
+        vif_df["seed"] = seed
+        all_rows.extend(vif_df.to_dict("records"))
+
+    return pandas.DataFrame(all_rows)
+
+
+def plot_vif_boxplot(
+        vif_multi: pandas.DataFrame,
+        vif_single: pandas.DataFrame,
+        filepath: str) -> None:
+    """Side-by-side boxplots comparing VIF distributions of MOGA vs SOGA selected features."""
+    ensure_directory(os.path.dirname(filepath))
+
+    vif_multi_plot: pandas.DataFrame = vif_multi.copy()
+    vif_multi_plot["method"] = "Multi-Objective\n(SiCo-MOGA)"
+    vif_single_plot: pandas.DataFrame = vif_single.copy()
+    vif_single_plot["method"] = "Single-Objective\n(AUC-only GA)"
+
+    combined: pandas.DataFrame = pandas.concat([vif_multi_plot, vif_single_plot], ignore_index=True)
+
+    _apply_plot_theme()
+    fig, axes = plt.subplots(1, 2, figsize=(16, 7))
+
+    # Left: boxplot by method
+    sns.boxplot(data=combined, x="method", y="vif", ax=axes[0],
+                palette={"Multi-Objective\n(SiCo-MOGA)": "tab:blue",
+                         "Single-Objective\n(AUC-only GA)": "tab:orange"},
+                width=0.5)
+    sns.stripplot(data=combined, x="method", y="vif", ax=axes[0],
+                  color="black", alpha=0.4, size=4, jitter=True)
+    axes[0].axhline(y=5.0, color="red", linestyle="--", alpha=0.7, label="VIF = 5 (moderate)")
+    axes[0].axhline(y=10.0, color="darkred", linestyle=":", alpha=0.7, label="VIF = 10 (high)")
+    axes[0].set_xlabel("Feature Selection Method", fontweight="bold")
+    axes[0].set_ylabel("Variance Inflation Factor (VIF)", fontweight="bold")
+    axes[0].set_title("VIF Distribution by Method\n"
+                      "(lower VIF = less multicollinearity)",
+                      fontweight="bold", pad=10)
+    axes[0].legend(fontsize=9, loc="upper right")
+    axes[0].grid(True, axis="y", alpha=0.3)
+
+    # Summary statistics annotation
+    for i, (method_name, df_method) in enumerate([
+        ("Multi-Objective\n(SiCo-MOGA)", vif_multi),
+        ("Single-Objective\n(AUC-only GA)", vif_single)
+    ]):
+        if not df_method.empty:
+            median_val: float = df_method["vif"].median()
+            mean_val: float = df_method["vif"].mean()
+            max_val: float = df_method["vif"].max()
+            axes[0].annotate(
+                f"Median={median_val:.1f}\nMean={mean_val:.1f}\nMax={max_val:.1f}",
+                xy=(i, max_val), xytext=(i + 0.3, max_val),
+                fontsize=8, color="black", fontstyle="italic",
+                ha="center", va="bottom")
+
+    # Right: per-feature VIF comparison (averaged across seeds)
+    avg_multi: pandas.DataFrame = vif_multi.groupby("feature")["vif"].mean().reset_index()
+    avg_multi.columns = ["feature", "vif_multi"]
+    avg_single: pandas.DataFrame = vif_single.groupby("feature")["vif"].mean().reset_index()
+    avg_single.columns = ["feature", "vif_single"]
+
+    merged: pandas.DataFrame = pandas.merge(avg_multi, avg_single, on="feature", how="outer").fillna(0.0)
+    merged = merged.sort_values("vif_multi", ascending=True)
+
+    y_pos: numpy.ndarray = numpy.arange(len(merged))
+    bar_height: float = 0.35
+
+    axes[1].barh(y_pos - bar_height / 2, merged["vif_multi"],
+                 bar_height, label="Multi-Objective (SiCo-MOGA)", color="tab:blue", edgecolor="black")
+    axes[1].barh(y_pos + bar_height / 2, merged["vif_single"],
+                 bar_height, label="Single-Objective (AUC-only GA)", color="tab:orange", edgecolor="black")
+    axes[1].axvline(x=5.0, color="red", linestyle="--", alpha=0.7, label="VIF = 5")
+    axes[1].axvline(x=10.0, color="darkred", linestyle=":", alpha=0.7, label="VIF = 10")
+    axes[1].set_yticks(y_pos)
+    axes[1].set_yticklabels(merged["feature"], fontsize=8)
+    axes[1].set_xlabel("Mean VIF (averaged across seeds)", fontweight="bold")
+    axes[1].set_ylabel("Feature", fontweight="bold")
+    axes[1].set_title("Per-Feature VIF Comparison\n"
+                      "(features selected by either method)",
+                      fontweight="bold", pad=10)
+    axes[1].legend(fontsize=8, loc="lower right")
+    axes[1].grid(True, axis="x", alpha=0.3)
+
+    fig.suptitle("Multicollinearity Analysis: Variance Inflation Factor (VIF)",
+                 fontweight="bold", fontsize=14, y=1.02)
     fig.tight_layout()
     fig.savefig(filepath, dpi=150, bbox_inches="tight")
     plt.close(fig)
