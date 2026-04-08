@@ -454,7 +454,7 @@ def plot_feature_frequency(
     order: numpy.ndarray = numpy.argsort(-counts)
     # Keep only features selected at least once
     mask: numpy.ndarray = counts[order] > 0
-    order = order[mask]
+    order: numpy.ndarray = order[mask]
 
     fig, ax = plt.subplots(figsize=(max(10, len(order) * 0.4), 6))
     x_pos: numpy.ndarray = numpy.arange(len(order))
