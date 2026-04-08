@@ -23,7 +23,7 @@ class SingleObjectiveTraining:
                  y_train_folds: list[numpy.ndarray],
                  y_val_folds: list[numpy.ndarray]) -> None:
         # Training configuration
-        self._config = config
+        self._config: TrainingConfig = config
 
         # Pre-compute folds and scaling
         self._feature_names: list[str] = feature_names
