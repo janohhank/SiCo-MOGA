@@ -16,16 +16,16 @@ def save_stats_csv(stats: list[dict], filepath: str) -> None:
         return
     ensure_directory(os.path.dirname(filepath))
     with open(filepath, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=stats[0].keys())
+        writer: csv.DictWriter = csv.DictWriter(f, fieldnames=stats[0].keys())
         writer.writeheader()
         writer.writerows(stats)
 
 
 def plot_single_objective_convergence(stats: list[dict], filepath: str) -> None:
     ensure_directory(os.path.dirname(filepath))
-    gens = [s["gen"] for s in stats]
-    max_vals = [s["max"] for s in stats]
-    avg_vals = [s["avg"] for s in stats]
+    gens: list[int] = [s["gen"] for s in stats]
+    max_vals: list[float] = [s["max"] for s in stats]
+    avg_vals: list[float] = [s["avg"] for s in stats]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(gens, max_vals, label="Max", linewidth=2)
@@ -47,7 +47,7 @@ def plot_single_objective_convergence(stats: list[dict], filepath: str) -> None:
 
 def plot_multi_objective_convergence(stats: list[dict], filepath: str) -> None:
     ensure_directory(os.path.dirname(filepath))
-    gens = [s["gen"] for s in stats]
+    gens: list[int] = [s["gen"] for s in stats]
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
@@ -83,8 +83,8 @@ def plot_multi_objective_convergence(stats: list[dict], filepath: str) -> None:
 
 def plot_pareto_front(pareto_individuals: list, filepath: str) -> None:
     ensure_directory(os.path.dirname(filepath))
-    auc_vals = [ind.fitness.values[0] for ind in pareto_individuals]
-    sign_vals = [ind.fitness.values[1] for ind in pareto_individuals]
+    auc_vals: list[float] = [ind.fitness.values[0] for ind in pareto_individuals]
+    sign_vals: list[float] = [ind.fitness.values[1] for ind in pareto_individuals]
 
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.scatter(auc_vals, sign_vals, c="royalblue", alpha=0.7, edgecolors="black", s=50)

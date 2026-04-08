@@ -182,9 +182,9 @@ class MultiObjectiveTraining:
 
     @staticmethod
     def _collect_gen_stats(gen: int, pop: list, hof: tools.ParetoFront, nevals: int) -> dict:
-        fitness_values = [ind.fitness.values for ind in pop]
-        auc_values = [f[0] for f in fitness_values]
-        sign_values = [f[1] for f in fitness_values]
+        fitness_values: list[tuple[float, float]] = [ind.fitness.values for ind in pop]
+        auc_values: list[float] = [f[0] for f in fitness_values]
+        sign_values: list[float] = [f[1] for f in fitness_values]
         return {
             "gen": gen,
             "nevals": nevals,
