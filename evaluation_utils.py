@@ -30,7 +30,7 @@ def get_dummy_columns(df: pandas.DataFrame) -> list[str]:
     """Return binary columns whose values are a subset of {0, 1}."""
     dummy_cols: list[str] = []
     for col in df.columns:
-        unique_vals = set(df[col].dropna().unique())
+        unique_vals: set[Any] = set(df[col].dropna().unique())
         if len(unique_vals) <= 2 and unique_vals.issubset({0, 1, 0.0, 1.0, True, False}):
             dummy_cols.append(col)
     return dummy_cols
@@ -173,7 +173,7 @@ def run_noise_evaluation(
             clean_shift: float = round(float(shift), 2)
             clean_noise: float = round(float(noise), 2)
 
-            X_noisy = apply_proportional_noise(
+            X_noisy: pandas.DataFrame = apply_proportional_noise(
                 X_test, train_std, clean_noise, clean_shift, continuous_cols)
 
             results.append({
@@ -211,18 +211,18 @@ def plot_robustness_heatmaps(results_df: pandas.DataFrame, filepath: str) -> Non
     """Side-by-side heatmaps: multi vs single under Gaussian noise + shift."""
     ensure_directory(os.path.dirname(filepath))
 
-    df_gauss = results_df[results_df["noise_type"] == "gaussian"]
+    df_gauss: pandas.DataFrame = results_df[results_df["noise_type"] == "gaussian"]
 
-    pivot_multi = df_gauss.pivot_table(
+    pivot_multi: pandas.DataFrame = df_gauss.pivot_table(
         index="mean_shift", columns="noise_level", values="auc_multi")
     pivot_multi = pivot_multi.sort_index(ascending=False)
 
-    pivot_single = df_gauss.pivot_table(
+    pivot_single: pandas.DataFrame = df_gauss.pivot_table(
         index="mean_shift", columns="noise_level", values="auc_single")
     pivot_single = pivot_single.sort_index(ascending=False)
 
-    vmin = min(df_gauss["auc_multi"].min(), df_gauss["auc_single"].min())
-    vmax = max(df_gauss["auc_multi"].max(), df_gauss["auc_single"].max())
+    vmin: float = min(df_gauss["auc_multi"].min(), df_gauss["auc_single"].min())
+    vmax: float = max(df_gauss["auc_multi"].max(), df_gauss["auc_single"].max())
 
     sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
@@ -248,7 +248,7 @@ def plot_dummy_flip_comparison(results_df: pandas.DataFrame, filepath: str) -> N
     """Line plot: multi vs single AUC under increasing bit-flip rate."""
     ensure_directory(os.path.dirname(filepath))
 
-    df_flip = results_df[results_df["noise_type"] == "dummy_flip"].sort_values("flip_rate")
+    df_flip: pandas.DataFrame = results_df[results_df["noise_type"] == "dummy_flip"].sort_values("flip_rate")
 
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(df_flip["flip_rate"], df_flip["auc_multi"],
@@ -269,7 +269,7 @@ def plot_gaussian_noise_comparison(results_df: pandas.DataFrame, filepath: str) 
     """Line plot: multi vs single AUC under Gaussian noise (zero mean-shift)."""
     ensure_directory(os.path.dirname(filepath))
 
-    df_gauss = results_df[
+    df_gauss: pandas.DataFrame = results_df[
         (results_df["noise_type"] == "gaussian") &
         (numpy.isclose(results_df["mean_shift"], 0.0))
     ].sort_values("noise_level")
@@ -319,13 +319,13 @@ def evaluate_and_save(
     plot_dummy_flip_comparison(results_df, os.path.join(seed_dir, "dummy_flip_comparison.png"))
 
     # Print summary for this seed
-    clean = results_df[
+    clean: pandas.DataFrame = results_df[
         (results_df["noise_type"] == "gaussian") &
         (numpy.isclose(results_df["noise_level"], 0.0)) &
         (numpy.isclose(results_df["mean_shift"], 0.0))
     ]
     if not clean.empty:
-        row = clean.iloc[0]
+        row: pandas.Series = clean.iloc[0]
         print(f"  Seed {seed} | Multi features: {len(model_pkg_multi['features']):3d} | "
               f"Single features: {len(model_pkg_single['features']):3d} | "
               f"Clean AUC  Multi: {row['auc_multi']:.4f}  Single: {row['auc_single']:.4f}")
