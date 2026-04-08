@@ -515,14 +515,15 @@ def plot_feature_frequency(
 def compute_vif(X: pandas.DataFrame, features: list[str]) -> pandas.DataFrame:
     """Compute VIF for each selected feature.
     Returns a DataFrame with columns ['feature', 'vif']."""
-    X_subset: pandas.DataFrame = X[features].copy()
+    X_subset: pandas.DataFrame = X[features].copy().astype(numpy.float64)
 
     # Add constant column for intercept
     X_subset.insert(0, "_const", 1.0)
 
+    values: numpy.ndarray = X_subset.to_numpy(dtype=numpy.float64)
     vif_data: list[dict[str, Any]] = []
     for i in range(1, X_subset.shape[1]):  # skip constant
-        vif_val: float = float(variance_inflation_factor(X_subset.values, i))
+        vif_val: float = float(variance_inflation_factor(values, i))
         vif_data.append({
             "feature": X_subset.columns[i],
             "vif": vif_val,
