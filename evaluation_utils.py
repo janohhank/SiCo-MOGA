@@ -568,10 +568,10 @@ def plot_vif_boxplot(
     fig, axes = plt.subplots(1, 2, figsize=(16, 7))
 
     # Left: boxplot by method
-    sns.boxplot(data=combined, x="method", y="vif", ax=axes[0],
-                palette={"Multi-Objective\n(SiCo-MOGA)": "tab:blue",
-                         "Single-Objective\n(AUC-only GA)": "tab:orange"},
-                width=0.5)
+    sns.boxplot(data=combined, x="method", y="vif", hue="method", ax=axes[0],
+            palette={"Multi-Objective\n(SiCo-MOGA)": "tab:blue",
+                     "Single-Objective\n(AUC-only GA)": "tab:orange"},
+            width=0.5, legend=False)
     sns.stripplot(data=combined, x="method", y="vif", ax=axes[0],
                   color="black", alpha=0.4, size=4, jitter=True)
     axes[0].axhline(y=5.0, color="red", linestyle="--", alpha=0.7, label="VIF = 5 (moderate)")
