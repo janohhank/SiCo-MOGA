@@ -514,8 +514,17 @@ def plot_feature_frequency(
 
 def compute_vif(X: pandas.DataFrame, features: list[str]) -> pandas.DataFrame:
     """Compute VIF for each selected feature.
-    Returns a DataFrame with columns ['feature', 'vif']."""
+    Returns a DataFrame with columns ['feature', 'vif'].
+    Zero-variance columns are excluded; inf/NaN VIF values are capped."""
     X_subset: pandas.DataFrame = X[features].copy().astype(numpy.float64)
+
+    # Drop zero-variance columns (they cause division by zero in R²)
+    zero_var_cols: list[str] = [col for col in X_subset.columns if X_subset[col].std() == 0]
+    if zero_var_cols:
+        X_subset = X_subset.drop(columns=zero_var_cols)
+
+    if X_subset.shape[1] < 2:
+        return pandas.DataFrame(columns=["feature", "vif"])
 
     # Add constant column for intercept
     X_subset.insert(0, "_const", 1.0)
@@ -524,6 +533,9 @@ def compute_vif(X: pandas.DataFrame, features: list[str]) -> pandas.DataFrame:
     vif_data: list[dict[str, Any]] = []
     for i in range(1, X_subset.shape[1]):  # skip constant
         vif_val: float = float(variance_inflation_factor(values, i))
+        # Cap inf/NaN (perfect collinearity) to a large finite value
+        if not numpy.isfinite(vif_val):
+            vif_val = 1e6
         vif_data.append({
             "feature": X_subset.columns[i],
             "vif": vif_val,
