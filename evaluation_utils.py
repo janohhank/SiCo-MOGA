@@ -104,8 +104,17 @@ def apply_dummy_noise(
         noise_fraction: float,
         dummy_cols: list[str]) -> pandas.DataFrame:
     """
-    Bit-flip noise on dummy (binary) variables.
-    noise_fraction: probability [0.0-1.0] that any single bit is flipped.
+    Randomisation noise on dummy (binary) variables.
+
+    noise_fraction: fraction [0.0-1.0] of cells that are **replaced** with a
+    random coin flip (0 or 1 with equal probability).
+
+    * 0.0  → original data, no noise
+    * 0.5  → half the dummy cells are replaced with random values
+    * 1.0  → all dummy cells are uniformly random (maximum entropy, no signal)
+
+    This guarantees monotonic signal degradation: unlike deterministic bit-flip,
+    fractions above 0.5 cannot invert and recover the original signal.
     """
     if numpy.isclose(noise_fraction, 0.0, atol=1e-09):
         return X_test.copy()
@@ -115,12 +124,20 @@ def apply_dummy_noise(
     for col in dummy_cols:
         if col not in X_out.columns:
             continue
-        flip_mask: numpy.ndarray = numpy.random.rand(len(X_out)) < noise_fraction
+        # Select which cells to corrupt
+        corrupt_mask: numpy.ndarray = numpy.random.rand(len(X_out)) < noise_fraction
+        n_corrupt: int = int(corrupt_mask.sum())
+
+        if n_corrupt == 0:
+            continue
+
+        # Replace selected cells with uniform random {0, 1}
+        random_vals: numpy.ndarray = numpy.random.randint(0, 2, size=n_corrupt)
 
         if pandas.api.types.is_bool_dtype(X_out[col]):
-            X_out.loc[flip_mask, col] = ~X_out.loc[flip_mask, col]
+            X_out.loc[corrupt_mask, col] = random_vals.astype(bool)
         else:
-            X_out.loc[flip_mask, col] = 1 - X_out.loc[flip_mask, col]
+            X_out.loc[corrupt_mask, col] = random_vals
 
     return X_out
 
@@ -185,7 +202,7 @@ def run_noise_evaluation(
 
     noise_levels: numpy.ndarray = numpy.arange(0.0, 1.1, 0.1)
     shift_levels: numpy.ndarray = numpy.arange(-1.0, 1.1, 0.2)
-    flip_levels: numpy.ndarray = numpy.arange(0.0, 0.55, 0.05)
+    flip_levels: numpy.ndarray = numpy.arange(0.0, 1.05, 0.1)
 
     results: list[dict[str, Any]] = []
 
@@ -287,9 +304,10 @@ def plot_dummy_flip_comparison(results_df: pandas.DataFrame, filepath: str) -> N
             label="Multi-Objective (SiCo-MOGA)", linewidth=2, marker="o", color="tab:blue")
     ax.plot(df_flip["flip_rate"], df_flip["auc_single"],
             label="Single-Objective (AUC-only GA)", linewidth=2, marker="s", linestyle="--", color="tab:orange")
-    ax.set_xlabel("Bit-Flip Probability (fraction of dummy features flipped)", fontweight="bold")
+    ax.set_xlabel("Corruption Fraction (proportion of dummy cells randomised)", fontweight="bold")
     ax.set_ylabel("Test ROC-AUC", fontweight="bold")
-    ax.set_title("Robustness to Random Bit-Flip Noise on Binary (Dummy) Features",
+    ax.set_title("Robustness to Random Corruption Noise on Binary (Dummy) Features\n"
+                 "(corrupted cells replaced with uniform random {0, 1})",
                  fontweight="bold", pad=10)
     ax.legend(frameon=True, fancybox=True, shadow=True)
     ax.grid(True, alpha=0.3)
