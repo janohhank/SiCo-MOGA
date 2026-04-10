@@ -246,7 +246,8 @@ def run_noise_evaluation(
 # Plotting
 # ---------------------------------------------------------------------------
 
-def plot_robustness_heatmaps(results_df: pandas.DataFrame, filepath: str) -> None:
+def plot_robustness_heatmaps(results_df: pandas.DataFrame, filepath: str,
+                             dataset_label: str = "Test") -> None:
     """Side-by-side heatmaps: multi vs single under Gaussian noise + shift."""
     ensure_directory(os.path.dirname(filepath))
 
@@ -270,7 +271,7 @@ def plot_robustness_heatmaps(results_df: pandas.DataFrame, filepath: str) -> Non
     fig, axes = plt.subplots(1, 2, figsize=(18, 7))
 
     sns.heatmap(pivot_multi, cmap="viridis", vmin=vmin, vmax=vmax, annot=False,
-                cbar_kws={"label": "Test ROC-AUC"}, ax=axes[0])
+                cbar_kws={"label": f"{dataset_label} ROC-AUC"}, ax=axes[0])
     axes[0].set_title(f"Multi-Objective (SiCo-MOGA) Robustness\n"
                       f"Clean AUC = {clean_multi:.4f} | AUC range [{vmin:.4f}, {vmax:.4f}]",
                       fontweight="bold", pad=15)
@@ -278,21 +279,22 @@ def plot_robustness_heatmaps(results_df: pandas.DataFrame, filepath: str) -> Non
     axes[0].set_ylabel("Systematic Mean Shift (fraction of training std)", fontweight="bold")
 
     sns.heatmap(pivot_single, cmap="viridis", vmin=vmin, vmax=vmax, annot=False,
-                cbar_kws={"label": "Test ROC-AUC"}, ax=axes[1])
+                cbar_kws={"label": f"{dataset_label} ROC-AUC"}, ax=axes[1])
     axes[1].set_title(f"Single-Objective (AUC-only GA) Robustness\n"
                       f"Clean AUC = {clean_single:.4f} | AUC range [{vmin:.4f}, {vmax:.4f}]",
                       fontweight="bold", pad=15)
     axes[1].set_xlabel("Gaussian Noise Level (fraction of training std)", fontweight="bold")
     axes[1].set_ylabel("Systematic Mean Shift (fraction of training std)", fontweight="bold")
 
-    fig.suptitle("Out-of-Distribution Robustness: Gaussian Noise + Covariate Shift on Continuous Features",
+    fig.suptitle(f"Robustness on {dataset_label} Set: Gaussian Noise + Covariate Shift on Continuous Features",
                  fontweight="bold", fontsize=14, y=1.02)
     fig.tight_layout()
     fig.savefig(filepath, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 
-def plot_dummy_flip_comparison(results_df: pandas.DataFrame, filepath: str) -> None:
+def plot_dummy_flip_comparison(results_df: pandas.DataFrame, filepath: str,
+                               dataset_label: str = "Test") -> None:
     """Line plot: multi vs single AUC under increasing bit-flip rate."""
     ensure_directory(os.path.dirname(filepath))
 
@@ -305,9 +307,9 @@ def plot_dummy_flip_comparison(results_df: pandas.DataFrame, filepath: str) -> N
     ax.plot(df_flip["flip_rate"], df_flip["auc_single"],
             label="Single-Objective (AUC-only GA)", linewidth=2, marker="s", linestyle="--", color="tab:orange")
     ax.set_xlabel("Corruption Fraction (proportion of dummy cells randomised)", fontweight="bold")
-    ax.set_ylabel("Test ROC-AUC", fontweight="bold")
-    ax.set_title("Robustness to Random Corruption Noise on Binary (Dummy) Features\n"
-                 "(corrupted cells replaced with uniform random {0, 1})",
+    ax.set_ylabel(f"{dataset_label} ROC-AUC", fontweight="bold")
+    ax.set_title(f"Robustness on {dataset_label} Set: Random Corruption Noise on Binary (Dummy) Features\n"
+                 f"(corrupted cells replaced with uniform random {{0, 1}})",
                  fontweight="bold", pad=10)
     ax.legend(frameon=True, fancybox=True, shadow=True)
     ax.grid(True, alpha=0.3)
@@ -321,7 +323,8 @@ def plot_dummy_flip_comparison(results_df: pandas.DataFrame, filepath: str) -> N
     plt.close(fig)
 
 
-def plot_gaussian_noise_comparison(results_df: pandas.DataFrame, filepath: str) -> None:
+def plot_gaussian_noise_comparison(results_df: pandas.DataFrame, filepath: str,
+                                    dataset_label: str = "Test") -> None:
     """Line plot: multi vs single AUC under Gaussian noise (zero mean-shift)."""
     ensure_directory(os.path.dirname(filepath))
 
@@ -338,9 +341,9 @@ def plot_gaussian_noise_comparison(results_df: pandas.DataFrame, filepath: str) 
             label="Single-Objective (AUC-only GA)", linewidth=2, marker="s", linestyle="--", color="tab:orange")
     ax.set_xlabel("Gaussian Noise Level (fraction of training std, no mean shift)",
                   fontweight="bold")
-    ax.set_ylabel("Test ROC-AUC", fontweight="bold")
-    ax.set_title("Robustness to Additive Gaussian Noise on Continuous Features\n"
-                 "(zero systematic mean shift)",
+    ax.set_ylabel(f"{dataset_label} ROC-AUC", fontweight="bold")
+    ax.set_title(f"Robustness on {dataset_label} Set: Additive Gaussian Noise on Continuous Features\n"
+                 f"(zero systematic mean shift)",
                  fontweight="bold", pad=10)
     ax.legend(frameon=True, fancybox=True, shadow=True)
     ax.grid(True, alpha=0.3)
@@ -362,26 +365,33 @@ def evaluate_and_save(
         seed: int,
         model_pkg_multi: dict[str, Any],
         model_pkg_single: dict[str, Any],
-        X_test: pandas.DataFrame,
-        y_test: pandas.Series,
+        X_eval: pandas.DataFrame,
+        y_eval: pandas.Series,
         train_std: pandas.Series,
         continuous_cols: list[str],
         dummy_cols: list[str],
         result_directory: str,
-        use_roc_auc: bool = True) -> pandas.DataFrame:
-    """Run the full noise evaluation for one seed and persist CSV + plots."""
+        use_roc_auc: bool = True,
+        dataset_label: str = "Test") -> pandas.DataFrame:
+    """Run the full noise evaluation for one seed and persist CSV + plots.
+
+    dataset_label: human-readable name for the dataset being evaluated
+    (e.g. "Test" or "Validation").  Used in plot titles, file names, and
+    the console summary line.
+    """
     results_df: pandas.DataFrame = run_noise_evaluation(
         model_pkg_multi, model_pkg_single,
-        X_test, y_test, train_std,
+        X_eval, y_eval, train_std,
         continuous_cols, dummy_cols, use_roc_auc)
 
+    label_lower: str = dataset_label.lower()
     seed_dir: str = os.path.join(result_directory, f"seed_{seed}")
     ensure_directory(seed_dir)
 
-    results_df.to_csv(os.path.join(seed_dir, "noise_evaluation.csv"), index=False)
-    plot_robustness_heatmaps(results_df, os.path.join(seed_dir, "robustness_heatmaps.png"))
-    plot_gaussian_noise_comparison(results_df, os.path.join(seed_dir, "gaussian_noise_comparison.png"))
-    plot_dummy_flip_comparison(results_df, os.path.join(seed_dir, "dummy_flip_comparison.png"))
+    results_df.to_csv(os.path.join(seed_dir, f"noise_evaluation_{label_lower}.csv"), index=False)
+    plot_robustness_heatmaps(results_df, os.path.join(seed_dir, f"robustness_heatmaps_{label_lower}.png"), dataset_label)
+    plot_gaussian_noise_comparison(results_df, os.path.join(seed_dir, f"gaussian_noise_comparison_{label_lower}.png"), dataset_label)
+    plot_dummy_flip_comparison(results_df, os.path.join(seed_dir, f"dummy_flip_comparison_{label_lower}.png"), dataset_label)
 
     # Print summary for this seed
     clean: pandas.DataFrame = results_df[
@@ -391,7 +401,7 @@ def evaluate_and_save(
     ]
     if not clean.empty:
         row: pandas.Series = clean.iloc[0]
-        print(f"  Seed {seed} | Multi features: {len(model_pkg_multi['features']):3d} | "
+        print(f"  Seed {seed} [{dataset_label}] | Multi features: {len(model_pkg_multi['features']):3d} | "
               f"Single features: {len(model_pkg_single['features']):3d} | "
               f"Clean AUC  Multi: {row['auc_multi']:.4f}  Single: {row['auc_single']:.4f}")
 
