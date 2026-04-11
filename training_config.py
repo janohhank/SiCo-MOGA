@@ -8,7 +8,7 @@ class TrainingConfig:
     # Bigger population -> bigger search space
     pop_size: int = 48
     # Bigger generation number -> bigger convergence
-    ngen: int = 25
+    ngen: int = 50
     # Crossing probability
     cxpb: float = 0.5
     # Mutation probability
