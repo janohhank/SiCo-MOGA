@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import warnings
 from typing import Any
 
 import numpy
@@ -560,7 +561,11 @@ def compute_vif(X: pandas.DataFrame, features: list[str]) -> pandas.DataFrame:
     values: numpy.ndarray = X_subset.to_numpy(dtype=numpy.float64)
     vif_data: list[dict[str, Any]] = []
     for i in range(1, X_subset.shape[1]):  # skip constant
-        vif_val: float = float(variance_inflation_factor(values, i))
+        # Suppress the "divide by zero" RuntimeWarning that statsmodels emits
+        # when R^2 == 1 (perfect collinearity); we cap the inf result below.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            vif_val: float = float(variance_inflation_factor(values, i))
         # Cap inf/NaN (perfect collinearity) to a large finite value
         if not numpy.isfinite(vif_val):
             vif_val = 1e6
