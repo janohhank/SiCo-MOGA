@@ -6,9 +6,9 @@ class TrainingConfig:
     # Seed for reproducibility
     seed: int
     # Bigger population -> bigger search space
-    pop_size: int = 188
+    pop_size: int = 244
     # Bigger generation number -> bigger convergence
-    ngen: int = 85
+    ngen: int = 385
     # Crossing probability
     cxpb: float = 0.5
     # Mutation probability
