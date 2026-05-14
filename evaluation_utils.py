@@ -459,25 +459,31 @@ def plot_stability_heatmap(
     mean_single: float = float(matrix_single[numpy.triu_indices_from(matrix_single, k=1)].mean()) \
         if len(seeds_single) > 1 else 1.0
 
-    _apply_plot_theme()
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    # Shared color scale across both panels: identical colormap and value range
+    # so the two heatmaps are directly visually comparable.
+    cmap_name: str = "viridis"
+    vmin: float = 0.0
+    vmax: float = 1.0
 
-    sns.heatmap(matrix_multi, annot=True, fmt=".3f", cmap="YlGnBu",
-                vmin=0.0, vmax=1.0, square=True, ax=axes[0],
+    _apply_plot_theme()
+    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+
+    sns.heatmap(matrix_multi, annot=True, fmt=".3f", cmap=cmap_name,
+                vmin=vmin, vmax=vmax, square=True, ax=axes[0],
                 xticklabels=[f"Seed {s}" for s in seeds_multi],
                 yticklabels=[f"Seed {s}" for s in seeds_multi],
-                cbar_kws={"label": "Jaccard Similarity"})
+                cbar=False)
     axes[0].set_title(f"Multi-Objective (SiCo-MOGA)\n"
                       f"Mean pairwise Jaccard = {mean_multi:.3f}",
                       fontweight="bold", pad=15)
     axes[0].set_xlabel("Seed", fontweight="bold")
     axes[0].set_ylabel("Seed", fontweight="bold")
 
-    sns.heatmap(matrix_single, annot=True, fmt=".3f", cmap="YlOrRd",
-                vmin=0.0, vmax=1.0, square=True, ax=axes[1],
+    sns.heatmap(matrix_single, annot=True, fmt=".3f", cmap=cmap_name,
+                vmin=vmin, vmax=vmax, square=True, ax=axes[1],
                 xticklabels=[f"Seed {s}" for s in seeds_single],
                 yticklabels=[f"Seed {s}" for s in seeds_single],
-                cbar_kws={"label": "Jaccard Similarity"})
+                cbar=False)
     axes[1].set_title(f"Single-Objective (AUC-only GA)\n"
                       f"Mean pairwise Jaccard = {mean_single:.3f}",
                       fontweight="bold", pad=15)
@@ -486,7 +492,15 @@ def plot_stability_heatmap(
 
     fig.suptitle("Feature Selection Stability Across Seeds (Jaccard Similarity)",
                  fontweight="bold", fontsize=14, y=1.02)
-    fig.tight_layout()
+
+    # Single shared colorbar on the right so both panels read against the same scale.
+    fig.tight_layout(rect=(0.0, 0.0, 0.9, 1.0))
+    cbar_ax = fig.add_axes((0.92, 0.15, 0.02, 0.7))
+    sm = plt.cm.ScalarMappable(
+        cmap=cmap_name, norm=plt.Normalize(vmin=vmin, vmax=vmax))
+    sm.set_array([])
+    fig.colorbar(sm, cax=cbar_ax, label="Jaccard Similarity")
+
     fig.savefig(filepath, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
