@@ -187,3 +187,18 @@ def knee_point_index(pareto_front: list) -> int:
     distances: numpy.ndarray = numpy.abs(cross) / line_len
 
     return int(numpy.argmax(distances))
+
+
+def select_pareto_individual(pareto_front: list, use_knee_point: bool = True):
+    """Pick one individual from a Pareto front using a consistent strategy.
+
+    use_knee_point=True  -> knee-point (balanced trade-off via knee_point_index).
+    use_knee_point=False -> best-sign-consistency (max fitness.values[1]).
+
+    Centralising the choice here guarantees that every call site in the
+    notebook (evaluation, stability, all-models comparison, ...) picks the
+    *same* individual for a given Pareto front.
+    """
+    if use_knee_point:
+        return pareto_front[knee_point_index(pareto_front)]
+    return pareto_front[best_sign_consistency_index(pareto_front)]
